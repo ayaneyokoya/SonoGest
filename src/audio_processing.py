@@ -1,50 +1,66 @@
 import pyaudio
 import numpy as np
+from pedalboard import Pedalboard, Reverb, Chorus, Delay
 
-def apply_reverb_effect(signal, tail_duration=2.0, sample_rate=22050):
-    """
-    Applies an extreme hall echo reverb to the entire signal using convolution
-    with a long impulse response, then normalizes the output so that its peak
-    amplitude matches the original signal.
-    
-    Parameters:
-      signal: NumPy array of the complete audio loop.
-      tail_duration: Duration in seconds of the reverb tail (e.g., 2.0 seconds).
-      sample_rate: The sample rate of the audio (default 44100).
-    
-    Returns:
-      A NumPy array of the processed audio (clipped between -1 and 1) with the
-      same peak volume as the input signal.
-    """
-    # Create an impulse response with a long tail.
-    ir_length = int(sample_rate * tail_duration)
-    t = np.linspace(0, tail_duration, ir_length)
-    decay_rate = 0.3  # Slow decay for a long echo tail.
-    ir = np.exp(-t * decay_rate)
-    ir = ir / np.sum(ir)
-    
-    # Convolve the entire signal with the impulse response.
-    conv = np.convolve(signal, ir, mode='full')[:signal.size]
-    
-    # Use a high wet mix for an extreme hall echo effect.
-    mix = 0.9
-    processed = (1 - mix) * signal + mix * conv
-    
-    # Normalize the processed signal to match the peak of the original signal.
-    dry_peak = np.max(np.abs(signal))
-    processed_peak = np.max(np.abs(processed))
-    factor = dry_peak / processed_peak if processed_peak > 0 else 1.0
-    out = processed * factor
-    
-    return np.clip(out, -1.0, 1.0)
+class AudioEffects:
+    def __init__(self, sample_rate=44100):
+        self.sample_rate = sample_rate
+        # Initialize effects chains with more intense reverb settings
+        self.reverb_board = Pedalboard([
+            Reverb(
+                room_size=0.9,    # Increased from 0.8
+                damping=0.2,      # Decreased from 0.5 for longer decay
+                wet_level=0.9,    # Increased from 0.8
+                dry_level=0.1,    # Decreased from 0.2
+                width=1.0         # Added stereo width parameter
+            )
+        ])
+        
+        self.chorus_board = Pedalboard([
+            Chorus(
+                rate_hz=3.0,
+                depth=0.5,
+                centre_delay_ms=7.0,
+                mix=0.5
+            )
+        ])
+        
+        self.delay_board = Pedalboard([
+            Delay(
+                delay_seconds=0.2,
+                feedback=0.4,
+                mix=0.5
+            )
+        ])
+
+    def apply_reverb(self, audio, intensity=1.0):
+        """Apply reverb effect with variable intensity"""
+        # More dramatic intensity scaling
+        self.reverb_board[0].room_size = min(1.0, 0.7 + intensity * 0.3)
+        self.reverb_board[0].wet_level = min(1.0, intensity)
+        self.reverb_board[0].damping = max(0.1, 0.5 - intensity * 0.4)
+        return self.reverb_board(audio, self.sample_rate)
+
+    def apply_chorus(self, audio):
+        """Apply chorus effect"""
+        return self.chorus_board(audio, self.sample_rate)
+
+    def apply_delay(self, audio):
+        """Apply delay effect"""
+        return self.delay_board(audio, self.sample_rate)
 
 def run_audio_processing(shared_data):
     p = pyaudio.PyAudio()
     frames_per_buffer = 2048
+    sample_rate = 44100
+    
+    # Initialize audio effects
+    effects = AudioEffects(sample_rate=sample_rate)
+    
     try:
         stream = p.open(format=pyaudio.paFloat32,
                         channels=1,
-                        rate=44100,
+                        rate=sample_rate,
                         input=True,
                         output=True,
                         frames_per_buffer=frames_per_buffer)
@@ -75,16 +91,13 @@ def run_audio_processing(shared_data):
                 print("Starting recording loop...")
                 recorded_frames = []
                 state = "recording"
-            # Convert bytes to a NumPy array and store it
+            # Only store the recorded audio, don't play it back
             recorded_frames.append(np.frombuffer(data, dtype=np.float32))
-            # Optionally output live audio during recording
-            stream.write(data)
 
         elif gesture == "closed_fist":
             if state == "recording":
                 print("Recording ended. Starting playback loop...")
                 state = "playing"
-                # Finalize recording: concatenate the recorded frames into one array
                 if recorded_frames:
                     audio_loop = np.concatenate(recorded_frames)
                 else:
@@ -92,22 +105,18 @@ def run_audio_processing(shared_data):
                 playback_pointer = 0
 
             if state == "playing" and audio_loop is not None and audio_loop.size > 0:
-                # Create a playback chunk from the recorded audio
+                # Only output audio during loop playback
                 end_pointer = playback_pointer + frames_per_buffer
                 chunk = audio_loop[playback_pointer:end_pointer]
                 if chunk.size < frames_per_buffer:
                     remainder = frames_per_buffer - chunk.size
-                    # Loop back to the start for continuous playback
                     chunk = np.concatenate((chunk, audio_loop[:remainder]))
                     playback_pointer = remainder
                 else:
                     playback_pointer = end_pointer
                 stream.write(chunk.astype(np.float32).tobytes())
-            else:
-                stream.write(data)
 
         elif gesture == "reverb":
-            # "OK" hand signal for reverb effect during playback
             if state == "playing" and audio_loop is not None and audio_loop.size > 0:
                 end_pointer = playback_pointer + frames_per_buffer
                 chunk = audio_loop[playback_pointer:end_pointer]
@@ -117,11 +126,12 @@ def run_audio_processing(shared_data):
                     playback_pointer = remainder
                 else:
                     playback_pointer = end_pointer
-                # Apply reverb effect to the playback chunk
-                chunk = apply_reverb_effect(chunk)
+                
+                # Get hand height for effect intensity (0.0 to 1.0)
+                intensity = shared_data.get("hand_height", 0.5)
+                # Apply effect
+                chunk = effects.apply_reverb(chunk, intensity)
                 stream.write(chunk.astype(np.float32).tobytes())
-            else:
-                stream.write(data)
 
         elif gesture == "hand_out":
             if state != "idle":
@@ -129,10 +139,9 @@ def run_audio_processing(shared_data):
                 state = "idle"
                 recorded_frames = []
                 audio_loop = None
-            stream.write(data)
 
         else:
-            # For "neutral" or any other state, continue playing loop if available
+            # For "neutral" or any other state, only play if there's an active loop
             if state == "playing" and audio_loop is not None and audio_loop.size > 0:
                 end_pointer = playback_pointer + frames_per_buffer
                 chunk = audio_loop[playback_pointer:end_pointer]
@@ -143,8 +152,6 @@ def run_audio_processing(shared_data):
                 else:
                     playback_pointer = end_pointer
                 stream.write(chunk.astype(np.float32).tobytes())
-            else:
-                stream.write(data)
 
     stream.stop_stream()
     stream.close()

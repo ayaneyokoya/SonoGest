@@ -4,3 +4,4 @@ pyaudio
 numpy
 Pillow
 moviepy
+pedalboard
