@@ -19,7 +19,7 @@ SonoGest is a computer visualization project that uses real-time hand gesture de
     ```
 2. Install the required packages:
     ```bash
-    pip install opencv-python mediapipe pyaudio numpy Pillow
+    pip install requirements.txt
     ```
 3. Run the project:
     ```bash

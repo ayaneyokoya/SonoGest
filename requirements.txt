@@ -5,3 +5,5 @@ numpy
 Pillow
 moviepy
 pedalboard
+pyobjc-framework-AppleScriptObjC  
+DawNet

@@ -1,158 +1,145 @@
-import pyaudio
-import numpy as np
-from pedalboard import Pedalboard, Reverb, Chorus, Delay
+import subprocess
+from pythonosc import udp_client
 
-class AudioEffects:
-    def __init__(self, sample_rate=44100):
-        self.sample_rate = sample_rate
-        # Initialize effects chains with more intense reverb settings
-        self.reverb_board = Pedalboard([
-            Reverb(
-                room_size=0.9,    # Increased from 0.8
-                damping=0.2,      # Decreased from 0.5 for longer decay
-                wet_level=0.9,    # Increased from 0.8
-                dry_level=0.1,    # Decreased from 0.2
-                width=1.0         # Added stereo width parameter
-            )
-        ])
+class AbletonController:
+    def __init__(self):
+        # AbletonOSC listens on port 11000 and sends replies on 11001
+        self.client = udp_client.SimpleUDPClient("127.0.0.1", 11000)
+        print("Initialized AbletonOSC client on port 11000")
         
-        self.chorus_board = Pedalboard([
-            Chorus(
-                rate_hz=3.0,
-                depth=0.5,
-                centre_delay_ms=7.0,
-                mix=0.5
-            )
-        ])
+    def send_osc(self, address, value):
+        try:
+            self.client.send_message(address, value)
+            print(f"DEBUG - Sent OSC message:")
+            print(f"  Address: {address}")
+            print(f"  Value: {value}")
+        except Exception as e:
+            print(f"ERROR - Failed to send OSC message:")
+            print(f"  Address: {address}")
+            print(f"  Value: {value}")
+            print(f"  Error: {str(e)}")
+
+    # def set_pitch(self, value):
+    #     """
+    #     Set pitch for clip 1 in track 0 using normalized distance value between OK gestures.
+    #     Args:
+    #         value: Float 0-1 representing normalized distance between OK gestures
+    #     """
+    #     # Map 0-1 to -48 to +48 range for pitch shifting
+    #     pitch_value = int((value * 96) - 48)
         
-        self.delay_board = Pedalboard([
-            Delay(
-                delay_seconds=0.2,
-                feedback=0.4,
-                mix=0.5
-            )
-        ])
+    #     try:
+    #         # Check if clip exists
+    #         self.send_osc("/live/clip_slot/get/has_clip", [0, 1])
+            
+    #         # Enable warping (required for pitch shift)
+    #         # self.send_osc("/live/clip/set/warping", [0, 1, 1])
+            
+    #         # Set pitch for clip
+    #         self.send_osc("/live/clip/set/pitch_coarse", [0, 0, pitch_value])
+            
+    #         # Debug output
+    #         print(f"Setting clip pitch to {pitch_value} semitones")
+            
+    #         # Verify pitch was set
+    #         self.send_osc("/live/clip/get/pitch_coarse", [0, 0])
+            
+    #     except Exception as e:
+    #         print(f"Error setting clip pitch: {e}")
+    #         # Get diagnostic info
+    #         self.send_osc("/live/clip_slot/get/has_clip", [0, 1])
 
-    def apply_reverb(self, audio, intensity=1.0):
-        """Apply reverb effect with variable intensity"""
-        # More dramatic intensity scaling
-        self.reverb_board[0].room_size = min(1.0, 0.7 + intensity * 0.3)
-        self.reverb_board[0].wet_level = min(1.0, intensity)
-        self.reverb_board[0].damping = max(0.1, 0.5 - intensity * 0.4)
-        return self.reverb_board(audio, self.sample_rate)
+    def start_recording(self):
+        # Starts playing scene
+        self.send_osc("/live/scene/fire", 0)
+        # Arm track 0
+        self.send_osc("/live/track/set/arm", [0, 1])
+        # Start recording
+        self.send_osc("/live/song/set/session_record", 1)
 
-    def apply_chorus(self, audio):
-        """Apply chorus effect"""
-        return self.chorus_board(audio, self.sample_rate)
-
-    def apply_delay(self, audio):
-        """Apply delay effect"""
-        return self.delay_board(audio, self.sample_rate)
+    def stop_recording(self):
+        """Stop recording and play back the recorded section"""
+        # Stop recording mode
+        self.send_osc("/live/song/set/session_record", 0)
+        
+        # Get current song position as the end point
+        self.send_osc("/live/song/get/current_song_time", None)
+        
+        # Return to start of recorded section
+        self.send_osc("/live/song/set/current_song_time", 0)
+        
+        # Disarm track
+        self.send_osc("/live/track/set/arm", [0, 0])
+        
+        # Start playback
+        self.send_osc("/live/song/continue_playing", 1)
+        
+        # # If vocal backing track still armed, stop arm
+        # if self.send_osc("/live/track/get/arm", -1):
+        #     self.send_osc("/live/track/set/arm", [-1, 0])
+    
+    # Index up = Add vocal backing track
+    # def add_vox(self):
+    #     self.send_osc("/live/song/create_audio_track", -1)
+    #     # Arm track 0
+    #     self.send_osc("/live/track/set/arm", [-1, 1])
+    #     # Start recording
+    #     self.send_osc("/live/song/set/session_record", 1)
+    #     # Begins playing scene 1
+    #     self.send_osc("/live/scene/fire", 0)
+        
+        # need to add stop arm for this track
+        
+    # Peace up = Record next scene
+    # def next_scene(self):
+    #      # Arm track 0
+    #     self.send_osc("/live/track/set/arm", [0, 1])
+    #     # Start recording
+    #     self.send_osc("/live/song/set/session_record", 1)
+    #     # Begins playing scene 1
+    #     self.send_osc("/live/scene/fire", 1)
+        
 
 def run_audio_processing(shared_data):
-    p = pyaudio.PyAudio()
-    frames_per_buffer = 2048
-    sample_rate = 44100
-    
-    # Initialize audio effects
-    effects = AudioEffects(sample_rate=sample_rate)
-    
-    try:
-        stream = p.open(format=pyaudio.paFloat32,
-                        channels=1,
-                        rate=sample_rate,
-                        input=True,
-                        output=True,
-                        frames_per_buffer=frames_per_buffer)
-    except Exception as e:
-        print("Error opening audio stream:", e)
-        return
-
-    # State machine: "idle", "recording", "playing"
+    controller = AbletonController()
     state = "idle"
-    recorded_frames = []  # List to hold NumPy arrays of recorded audio
-    audio_loop = None     # Finalized loop as a NumPy array
-    playback_pointer = 0  # Pointer for loop playback
 
     while True:
         if shared_data.get("stop"):
             break
 
-        try:
-            data = stream.read(frames_per_buffer, exception_on_overflow=False)
-        except Exception as e:
-            print("Audio stream error:", e)
-            continue
-
         gesture = shared_data.get("gesture", "hand_out")
 
         if gesture == "open_hand":
             if state != "recording":
-                print("Starting recording loop...")
-                recorded_frames = []
+                print("Starting Ableton recording...")
                 state = "recording"
-            # Only store the recorded audio, don't play it back
-            recorded_frames.append(np.frombuffer(data, dtype=np.float32))
+                controller.start_recording()
 
         elif gesture == "closed_fist":
             if state == "recording":
-                print("Recording ended. Starting playback loop...")
-                state = "playing"
-                if recorded_frames:
-                    audio_loop = np.concatenate(recorded_frames)
-                else:
-                    audio_loop = np.array([], dtype=np.float32)
-                playback_pointer = 0
-
-            if state == "playing" and audio_loop is not None and audio_loop.size > 0:
-                # Only output audio during loop playback
-                end_pointer = playback_pointer + frames_per_buffer
-                chunk = audio_loop[playback_pointer:end_pointer]
-                if chunk.size < frames_per_buffer:
-                    remainder = frames_per_buffer - chunk.size
-                    chunk = np.concatenate((chunk, audio_loop[:remainder]))
-                    playback_pointer = remainder
-                else:
-                    playback_pointer = end_pointer
-                stream.write(chunk.astype(np.float32).tobytes())
-
-        elif gesture == "reverb":
-            if state == "playing" and audio_loop is not None and audio_loop.size > 0:
-                end_pointer = playback_pointer + frames_per_buffer
-                chunk = audio_loop[playback_pointer:end_pointer]
-                if chunk.size < frames_per_buffer:
-                    remainder = frames_per_buffer - chunk.size
-                    chunk = np.concatenate((chunk, audio_loop[:remainder]))
-                    playback_pointer = remainder
-                else:
-                    playback_pointer = end_pointer
-                
-                # Get hand height for effect intensity (0.0 to 1.0)
-                intensity = shared_data.get("hand_height", 0.5)
-                # Apply effect
-                chunk = effects.apply_reverb(chunk, intensity)
-                stream.write(chunk.astype(np.float32).tobytes())
+                print("Stopping recording and starting loop playback...")
+                state = "idle"
+                controller.stop_recording()
 
         elif gesture == "hand_out":
             if state != "idle":
-                print("Hand out detected. Stopping loop and reverting to live audio.")
+                print("Hand out detected. Stopping recording.")
                 state = "idle"
-                recorded_frames = []
-                audio_loop = None
-
-        else:
-            # For "neutral" or any other state, only play if there's an active loop
-            if state == "playing" and audio_loop is not None and audio_loop.size > 0:
-                end_pointer = playback_pointer + frames_per_buffer
-                chunk = audio_loop[playback_pointer:end_pointer]
-                if chunk.size < frames_per_buffer:
-                    remainder = frames_per_buffer - chunk.size
-                    chunk = np.concatenate((chunk, audio_loop[:remainder]))
-                    playback_pointer = remainder
-                else:
-                    playback_pointer = end_pointer
-                stream.write(chunk.astype(np.float32).tobytes())
-
-    stream.stop_stream()
-    stream.close()
-    p.terminate()
+                controller.stop_recording()
+        # elif gesture == "pitch":
+        #     pitch_value = shared_data.get("pitch_value", 0.5)
+        #     print(f"Adjusting pitch... Value: {pitch_value}")
+        #     controller.set_pitch(pitch_value)
+                
+        # elif gesture == "index_up":
+        #     if state != "recording":
+        #         print("Adding vocal backing track...")
+        #         state = "recording"
+        #         controller.add_vox()
+                
+        # elif gesture == "peace_up":
+        #     if state != "recording":
+        #         print("Recording next scene...")
+        #         state = "recording"
+        #         controller.next_scene()
