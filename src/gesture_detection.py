@@ -76,7 +76,7 @@ def detect_single_hand_gesture(hand_landmarks):
     if index_extended and middle_folded and ring_folded and pinky_folded and thumb_folded:
         return "index_up"
     elif index_extended and middle_extended and ring_folded and pinky_folded and thumb_folded:
-        return "peace"
+        return "peace_up"
 
     extended_count = sum([thumb_extended, index_extended, middle_extended, ring_extended, pinky_extended])
     if extended_count >= 4:

@@ -19,35 +19,23 @@ class AbletonController:
             print(f"  Value: {value}")
             print(f"  Error: {str(e)}")
 
-    # def set_pitch(self, value):
-    #     """
-    #     Set pitch for clip 1 in track 0 using normalized distance value between OK gestures.
-    #     Args:
-    #         value: Float 0-1 representing normalized distance between OK gestures
-    #     """
-    #     # Map 0-1 to -48 to +48 range for pitch shifting
-    #     pitch_value = int((value * 96) - 48)
+    def set_pitch(self, value):
+        """
+        Set pitch for clip 1 in track 0 using normalized distance value between OK gestures.
+        Args:
+            value: Float 0-1 representing normalized distance between OK gestures
+        """
+        # Map 0-1 to -48 to +48 range for pitch shifting
+        pitch_value = int((value * 96) - 48)
+            
+        # Set pitch for clip
+        self.send_osc("/live/clip/set/pitch_coarse", [0, 0, pitch_value])
         
-    #     try:
-    #         # Check if clip exists
-    #         self.send_osc("/live/clip_slot/get/has_clip", [0, 1])
-            
-    #         # Enable warping (required for pitch shift)
-    #         # self.send_osc("/live/clip/set/warping", [0, 1, 1])
-            
-    #         # Set pitch for clip
-    #         self.send_osc("/live/clip/set/pitch_coarse", [0, 0, pitch_value])
-            
-    #         # Debug output
-    #         print(f"Setting clip pitch to {pitch_value} semitones")
-            
-    #         # Verify pitch was set
-    #         self.send_osc("/live/clip/get/pitch_coarse", [0, 0])
-            
-    #     except Exception as e:
-    #         print(f"Error setting clip pitch: {e}")
-    #         # Get diagnostic info
-    #         self.send_osc("/live/clip_slot/get/has_clip", [0, 1])
+        # Debug output
+        print(f"Setting clip pitch to {pitch_value} semitones")
+        
+        # Verify pitch was set
+        self.send_osc("/live/clip/get/pitch_coarse", [0, 0])
 
     def start_recording(self):
         # Starts playing scene
@@ -71,33 +59,28 @@ class AbletonController:
         # Disarm track
         self.send_osc("/live/track/set/arm", [0, 0])
         
+        # # Undo solo if active
+        # self.send_osc("/live/track/set/solo", [0, 0])
+        
         # Start playback
         self.send_osc("/live/song/continue_playing", 1)
-        
-        # # If vocal backing track still armed, stop arm
-        # if self.send_osc("/live/track/get/arm", -1):
-        #     self.send_osc("/live/track/set/arm", [-1, 0])
     
-    # Index up = Add vocal backing track
-    # def add_vox(self):
-    #     self.send_osc("/live/song/create_audio_track", -1)
-    #     # Arm track 0
-    #     self.send_osc("/live/track/set/arm", [-1, 1])
-    #     # Start recording
-    #     self.send_osc("/live/song/set/session_record", 1)
-    #     # Begins playing scene 1
-    #     self.send_osc("/live/scene/fire", 0)
-        
-        # need to add stop arm for this track
+    # Index up = Solo vocal audio
+    # def solo(self):
+    #     self.send_osc("/live/track/set/solo", [0, 1])
         
     # Peace up = Record next scene
-    # def next_scene(self):
-    #      # Arm track 0
-    #     self.send_osc("/live/track/set/arm", [0, 1])
-    #     # Start recording
-    #     self.send_osc("/live/song/set/session_record", 1)
-    #     # Begins playing scene 1
-    #     self.send_osc("/live/scene/fire", 1)
+    def next_scene(self):
+        # Begins playing scene 1
+        self.send_osc("/live/scene/fire", 1)
+         # Arm track 0
+        self.send_osc("/live/track/set/arm", [0, 1])
+        # Start recording
+        self.send_osc("/live/song/set/session_record", 1)
+        
+    def neutral(self):
+        # self.send_osc("/live/track/set/solo", [0, 0])
+        self.send_osc("/live/track/set/arm", [0, 0])
         
 
 def run_audio_processing(shared_data):
@@ -124,22 +107,21 @@ def run_audio_processing(shared_data):
 
         elif gesture == "hand_out":
             if state != "idle":
-                print("Hand out detected. Stopping recording.")
+                print("Hand out detected. Going back to neutral state.")
                 state = "idle"
-                controller.stop_recording()
-        # elif gesture == "pitch":
-        #     pitch_value = shared_data.get("pitch_value", 0.5)
-        #     print(f"Adjusting pitch... Value: {pitch_value}")
-        #     controller.set_pitch(pitch_value)
+                controller.neutral()
+                
+        elif gesture == "pitch":
+            pitch_value = shared_data.get("pitch_value", 0.5)
+            print(f"Adjusting pitch... Value: {pitch_value}")
+            controller.set_pitch(pitch_value)
+            
+        elif gesture == "peace_up":
+            print("Recording next scene...")
+            state = "recording"
+            controller.next_scene()
                 
         # elif gesture == "index_up":
-        #     if state != "recording":
-        #         print("Adding vocal backing track...")
-        #         state = "recording"
-        #         controller.add_vox()
-                
-        # elif gesture == "peace_up":
-        #     if state != "recording":
-        #         print("Recording next scene...")
-        #         state = "recording"
-        #         controller.next_scene()
+        #     print("Isolating vocal track...")
+        #     state = "idle"
+        #     controller.solo()
