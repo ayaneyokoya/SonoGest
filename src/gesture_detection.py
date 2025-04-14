@@ -3,28 +3,65 @@ import mediapipe as mp
 from PIL import Image
 import math
 
+def get_finger_states(hand_landmarks):
+    """Get extended/folded state of all fingers"""
+    return {
+        'index': hand_landmarks.landmark[8].y < hand_landmarks.landmark[6].y,
+        'middle': hand_landmarks.landmark[12].y < hand_landmarks.landmark[10].y,
+        'ring': hand_landmarks.landmark[16].y < hand_landmarks.landmark[14].y,
+        'pinky': hand_landmarks.landmark[20].y < hand_landmarks.landmark[18].y,
+        'thumb': hand_landmarks.landmark[4].x > hand_landmarks.landmark[3].x
+    }
+
+def get_ok_center(hand_landmarks):
+    """Calculate center point of OK gesture (thumb and index)"""
+    x = (hand_landmarks.landmark[4].x + hand_landmarks.landmark[8].x) / 2
+    y = (hand_landmarks.landmark[4].y + hand_landmarks.landmark[8].y) / 2
+    return x, y
+
+def get_thumb_index_distance(hand_landmarks):
+    """Calculate distance between thumb tip and index finger tip"""
+    dx = hand_landmarks.landmark[4].x - hand_landmarks.landmark[8].x
+    dy = hand_landmarks.landmark[4].y - hand_landmarks.landmark[8].y
+    return math.sqrt(dx * dx + dy * dy)
+
+def detect_single_hand_gesture(hand_landmarks):
+    finger_states = get_finger_states(hand_landmarks)
+    
+    # Check for OK gesture
+    thumb_index_distance = get_thumb_index_distance(hand_landmarks)
+    if thumb_index_distance < 0.05:
+        if all([finger_states['middle'], finger_states['ring'], finger_states['pinky']]):
+            wrist_y = hand_landmarks.landmark[0].y
+            reverb_intensity = 1 + (1 - wrist_y) * 10.0
+            return ("reverb", reverb_intensity)
+    
+    # Check for peace sign (index and middle up, others down)
+    if (finger_states['index'] and finger_states['middle'] and 
+        not any([finger_states['ring'], finger_states['pinky'], finger_states['thumb']])):
+        return "peace_up"
+    
+    # Determine gesture based on all five fingers
+    extended_count = sum(finger_states.values())
+    if extended_count >= 4:
+        return "open_hand"
+    elif extended_count == 0:
+        return "closed_fist"
+    else:
+        return "neutral"
+
 def detect_hand_gesture(hand_landmarks_list):
-    if len(hand_landmarks_list) == 2:  # Two hands detected
-        hand1 = hand_landmarks_list[0]
-        hand2 = hand_landmarks_list[1]
+    if len(hand_landmarks_list) == 2:
+        hand1, hand2 = hand_landmarks_list[0], hand_landmarks_list[1]
         
-        # Check if both hands are making OK gesture
         if is_ok_gesture(hand1) and is_ok_gesture(hand2):
-            # Calculate distance between OK points of both hands
-            h1_center_x = (hand1.landmark[4].x + hand1.landmark[8].x) / 2
-            h1_center_y = (hand1.landmark[4].y + hand1.landmark[8].y) / 2
-            h2_center_x = (hand2.landmark[4].x + hand2.landmark[8].x) / 2
-            h2_center_y = (hand2.landmark[4].y + hand2.landmark[8].y) / 2
+            h1_x, h1_y = get_ok_center(hand1)
+            h2_x, h2_y = get_ok_center(hand2)
             
-            dx = h1_center_x - h2_center_x
-            dy = h1_center_y - h2_center_y
-            distance = math.sqrt(dx * dx + dy * dy)
-            
-            # Adjust normalization to start from minimum when hands are close
+            distance = math.sqrt((h1_x - h2_x)**2 + (h1_y - h2_y)**2)
             normalized_distance = min(max(distance, 0.0), 0.8) / 0.8
             return ("pitch", normalized_distance)
     
-    # Single hand gestures remain the same
     elif len(hand_landmarks_list) == 1:
         return detect_single_hand_gesture(hand_landmarks_list[0])
     
@@ -36,55 +73,6 @@ def is_ok_gesture(hand_landmarks):
     dy = hand_landmarks.landmark[4].y - hand_landmarks.landmark[8].y
     thumb_index_distance = math.sqrt(dx * dx + dy * dy)
     return thumb_index_distance < 0.05
-
-def detect_single_hand_gesture(hand_landmarks):
-    # Compute distance between thumb tip (4) and index finger tip (8)
-    dx = hand_landmarks.landmark[4].x - hand_landmarks.landmark[8].x
-    dy = hand_landmarks.landmark[4].y - hand_landmarks.landmark[8].y
-    thumb_index_distance = math.sqrt(dx * dx + dy * dy)
-    
-    # Check for "OK" hand signal (reverb gesture):
-    # If thumb and index are close together (below threshold) and the other three fingers are extended.
-    ok_threshold = 0.05  # Adjust threshold as needed
-    if thumb_index_distance < ok_threshold:
-        middle_extended = hand_landmarks.landmark[12].y < hand_landmarks.landmark[10].y
-        ring_extended = hand_landmarks.landmark[16].y < hand_landmarks.landmark[14].y
-        pinky_extended = hand_landmarks.landmark[20].y < hand_landmarks.landmark[18].y
-        if middle_extended and ring_extended and pinky_extended:
-            # Use the wrist's y-coordinate (landmark 0) to determine reverb intensity.
-            # Normalized y goes from 0 at the top to 1 at the bottom.
-            # When the hand is low (wrist_y near 1), reverb intensity is 1 (lowest).
-            # When the hand is high (wrist_y near 0), reverb intensity increases.
-            wrist_y = hand_landmarks.landmark[0].y
-            scale_factor = 10.0  # Adjust this factor for how much reverb you want at maximum.
-            reverb_intensity = 1 + (1 - wrist_y) * scale_factor
-            # Return a tuple with the gesture "reverb" and the computed intensity.
-            return ("reverb", reverb_intensity)
-    
-    # Otherwise, determine gesture based on all five fingers.
-    index_extended = hand_landmarks.landmark[8].y < hand_landmarks.landmark[6].y
-    middle_extended = hand_landmarks.landmark[12].y < hand_landmarks.landmark[10].y
-    ring_extended = hand_landmarks.landmark[16].y < hand_landmarks.landmark[14].y
-    pinky_extended = hand_landmarks.landmark[20].y < hand_landmarks.landmark[18].y
-    thumb_extended = hand_landmarks.landmark[4].x > hand_landmarks.landmark[3].x
-    middle_folded = hand_landmarks.landmark[12].y > hand_landmarks.landmark[10].y
-    ring_folded = hand_landmarks.landmark[16].y > hand_landmarks.landmark[14].y
-    pinky_folded = hand_landmarks.landmark[20].y > hand_landmarks.landmark[18].y
-    thumb_folded = hand_landmarks.landmark[4].x < hand_landmarks.landmark[3].x
-    
-    # Return specific gestures
-    if index_extended and middle_folded and ring_folded and pinky_folded and thumb_folded:
-        return "index_up"
-    elif index_extended and middle_extended and ring_folded and pinky_folded and thumb_folded:
-        return "peace_up"
-
-    extended_count = sum([thumb_extended, index_extended, middle_extended, ring_extended, pinky_extended])
-    if extended_count >= 4:
-        return "open_hand"
-    elif extended_count == 0:
-        return "closed_fist"
-    else:
-        return "neutral"
 
 def run_gesture_detection(shared_data):
     mp_hands = mp.solutions.hands

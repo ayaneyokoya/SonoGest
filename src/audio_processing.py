@@ -64,19 +64,15 @@ class AbletonController:
         
         # Start playback
         self.send_osc("/live/song/continue_playing", 1)
-    
-    # Index up = Solo vocal audio
-    # def solo(self):
-    #     self.send_osc("/live/track/set/solo", [0, 1])
         
     # Peace up = Record next scene
     def next_scene(self):
         # Begins playing scene 1
         self.send_osc("/live/scene/fire", 1)
-         # Arm track 0
-        self.send_osc("/live/track/set/arm", [0, 1])
         # Start recording
         self.send_osc("/live/song/set/session_record", 1)
+         # Arm track 0
+        self.send_osc("/live/track/set/arm", [0, 1])
         
     def neutral(self):
         # self.send_osc("/live/track/set/solo", [0, 0])
@@ -120,8 +116,6 @@ def run_audio_processing(shared_data):
             print("Recording next scene...")
             state = "recording"
             controller.next_scene()
-                
-        # elif gesture == "index_up":
-        #     print("Isolating vocal track...")
-        #     state = "idle"
-        #     controller.solo()
+        else: 
+            controller.neutral()
+            state = "idle"
