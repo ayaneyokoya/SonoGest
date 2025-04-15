@@ -54,7 +54,14 @@ SonoGest is a gesture-controlled audio production tool that enables hands-free c
    ```bash
    python run.py
    ```
-
+6. Install UI Dependencies:
+   - npx create-react-app sono-gest-ui
+   - cd sono-gest-ui
+   - npm install tone lucide-react
+   - pip install fastapi uvicorn
+   - pip install "uvicorn[standard]"
+   - uvicorn src.api:app --reload
+   
 ## System Requirements
 - macOS 10.15 or higher
 - Ableton Live 11+
