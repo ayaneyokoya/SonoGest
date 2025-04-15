@@ -1,0 +1,234 @@
+/* src/SubmarineMusicBoard.css */
+
+/* Global container for the board */
+.board-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 100vh;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  /* Submarine container styling */
+  .submarine-container {
+    position: relative;
+    width: 100%;
+    max-width: 768px;
+    margin-bottom: 2rem;
+  }
+  
+  .submarine {
+    background-color: #374151; /* Tailwind's gray-800 */
+    border: 2px solid #4b5563; /* Tailwind's gray-700 */
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+    position: relative;
+  }
+  
+  /* Red light indicator */
+  .red-light {
+    position: absolute;
+    top: 0.5rem;
+    right: 1.5rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    background-color: #ef4444; /* Tailwind's red-500 */
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  
+  /* Windows styling */
+  .windows {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+    gap: 1.5rem;
+  }
+  
+  .window {
+    width: 4rem;
+    height: 4rem;
+    background-color: #1f2937; /* Tailwind's gray-900 */
+    border: 4px solid #4b5563; /* Tailwind's gray-700 */
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .inner-pulse {
+    width: 2.5rem;
+    height: 2.5rem;
+    background-color: #14b8a6; /* Tailwind's teal-400 */
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  
+  .inner-light {
+    width: 2.5rem;
+    height: 2.5rem;
+    background-color: #0ea5e9; /* Tailwind's blue-500 */
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  
+  /* Pulse animation for the window */
+  @keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  
+  /* Webcam display styling */
+  .webcam-display {
+    position: relative;
+    width: 40rem;
+    height: 30rem;
+    background-color: #1f2937;
+    border: 2px solid #4b5563;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    margin: 0 auto 2rem;
+  }
+  
+  .webcam-video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.8;
+  }
+  
+  .hidden-canvas {
+    display: none;
+  }
+  
+  .webcam-inactive {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    position: relative;
+  }
+  
+  .webcam-icon {
+    width: 3rem;
+    height: 3rem;
+    color: #4b5563; /* Tailwind's gray-600 */
+  }
+  
+  .webcam-text {
+    position: absolute;
+    bottom: 0.5rem;
+    font-size: 0.75rem;
+    color: #9ca3af; /* Tailwind's gray-500 */
+  }
+  
+  /* Control Panel styling */
+  .control-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .knobs {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+  }
+  
+  /* Knob component styling */
+  .knob {
+    width: 4rem;
+    height: 4rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 0.5rem 1rem;
+    border: 4px solid;
+    transition: transform 0.3s ease;
+  }
+  
+  .knob-pointer {
+    width: 0.5rem;
+    height: 2rem;
+    background-color: #fff;
+    border-radius: 0.25rem;
+    transform: translateY(0.5rem);
+  }
+  
+  .knob-label {
+    font-size: 0.75rem;
+    color: #fff;
+  }
+  
+  /* Progress Bar styling */
+  .progress-bar {
+    width: 100%;
+    background-color: #4b5563;
+    height: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+  }
+  
+  .progress-indicator {
+    height: 100%;
+    background: linear-gradient(to right, #14b8a6, #0ea5e9);
+  }
+  
+  /* Button Group styling */
+  .button-group {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .btn {
+    padding: 1rem;
+    border-radius: 9999px;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+  }
+  
+  .btn-teal { background-color: #14b8a6; }
+  .btn-red { background-color: #ef4444; }
+  .btn-green { background-color: #22c55e; }
+  .btn-yellow { background-color: #eab308; }
+  .btn-purple { background-color: #8b5cf6; }
+  .btn-gray { background-color: #6b7280; }
+  .btn-blue { background-color: #3b82f6; }
+  
+  /* Gesture Indicator styling */
+  .gesture-indicator {
+    margin-top: 1rem;
+    padding: 0.5rem;
+    background-color: #1f2937;
+    border: 1px solid #4b5563;
+    border-radius: 0.5rem;
+    text-align: center;
+  }
+  
+  .gesture-text-title {
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+  }
+  
+  .gesture-text-value {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: #14b8a6;
+  }
+  
+ 
+  
